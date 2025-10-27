@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Okul Zil Kontrol Sistemi</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg,#667eea,#764ba2); color:#222; }
+        .container { max-width:1100px; margin:0 auto; background:#fff; border-radius:12px; padding:16px; }
+        header { display:flex; justify-content:space-between; align-items:center; padding:12px 0; }
+        h1 { margin:0; font-size:1.25rem; }
+        .grid { display:grid; grid-template-columns: 1fr 420px; gap:12px; }
+        @media (max-width:800px){ .grid{ grid-template-columns: 1fr; } .small-btn{ padding:10px 12px; } }
+        .panel { padding:12px; border-radius:10px; background:#fafafa; margin-bottom:12px; }
+        .btn{ background:#2196F3; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }
+        .btn-danger{ background:#f44336; }
+        .btn-success{ background:#4CAF50; }
+        input, select { padding:8px; border-radius:6px; border:1px solid #ddd; width:100%; }
+        .locations-list .location-item{ display:flex; justify-content:space-between; align-items:center; padding:8px; background:#fff; border-radius:6px; margin-bottom:6px; border-left:4px solid #2196F3; }
+        .small { font-size:0.9rem; color:#666; }
+    </style>
+</head>
+<body>
+  <div class="container" id="main" style="display:none">
+    <header>
+      <h1>🏫 Okul Zil Kontrol Sistemi</h1>
+      <div>
+        <button class="btn" id="syncBtn" onclick="requestSync()">Saat Senkronize Et</button>
+        <button class="btn btn-danger" onclick="logout()">Çıkış</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div>
+        <div class="panel">
+          <h3>📍 Lokasyonlar</h3>
+          <div style="display:flex; gap:8px; margin-bottom:8px;">
+            <input id="newLocationInput" placeholder="Yeni lokasyon adı (ör. atolye)" />
+            <button class="btn btn-success" onclick="addLocation()">Ekle</button>
+          </div>
+          <div id="locationsList" class="locations-list small"></div>
+        </div>
+
+        <div class="panel">
+          <h3>⏰ Zil Programı</h3>
+          <select id="locationSelector" onchange="loadSchedule()">
+            <option value="">-- Lokasyon seçin --</option>
+          </select>
+          <div id="scheduleEditor" style="margin-top:12px;"></div>
+          <div style="display:flex; gap:8px; margin-top:8px;">
+            <button class="btn" onclick="addScheduleItem()">➕ Yeni Zil</button>
+            <button class="btn" onclick="saveSchedule()">💾 Kaydet</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>🔔 Acil Komut</h3>
+          <button class="btn btn-success" onclick="sendAllCommand('TENEFFUS')">🟢 HEPSİ TENEFFÜS</button>
+          <button class="btn btn-danger" onclick="sendAllCommand('DERS')">🔴 HEPSİ DERS</button>
+          <button class="btn" style="background:#757575;color:#fff" onclick="sendAllCommand('KAPALI')">⚫ HEPSİ KAPALI</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h3>🛠 Tatil Yönetimi & Ayarlar</h3>
+          <div style="margin-bottom:8px;">
+            <label><input type="checkbox" id="ignoreWeekendsCheckbox" onchange="toggleIgnoreWeekends()" /> Hafta sonlarını atla</label>
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <strong>Tek tarih ekle</strong>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <input id="holidayDate" placeholder="YYYY-MM-DD" />
+              <button class="btn" onclick="addHoliday()">Tatil Ekle</button>
+            </div>
+          </div>
+
+          <div style="margin-bottom:8px;">
+            <strong>Tatil aralığı ekle</strong>
+            <div style="display:flex;gap:8px;margin-top:6px;">
+              <input id="holidayStart" type="date" />
+              <input id="holidayEnd" type="date" />
+            </div>
+            <div style="display:flex;gap:8px;margin-top:8px;">
+              <button class="btn" onclick="addHolidayRange()">Aralığı Ekle</button>
+              <button class="btn" style="background:#f44336" onclick="removeHolidayRange()">Aralığı Sil</button>
+            </div>
+            <div class="small" style="margin-top:6px;">Örnek: 2025-12-20 → 2026-01-10 gibi uzun aralıklar ekleyebilirsiniz.</div>
+          </div>
+
+          <div id="holidaysList" class="small"></div>
+        </div>
+
+        <div class="panel">
+          <h3>📱 Cihazlar</h3>
+          <div id="slaveList" class="small"></div>
+        </div>
+
+        <div class="panel">
+          <h3>Bilgi</h3>
+          <div class="small">Saat senkronizasyonu: web'den "Saat Senkronize Et" ile istenebilir. Master günde bir kez NTP ile kendisini günceller (ağ limitlerini korumak için).</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="login" style="max-width:420px;margin:40px auto;background:#fff;padding:18px;border-radius:12px">
+    <h2>Giriş</h2>
+    <div style="margin-bottom:8px"><input id="loginEmail" placeholder="E-posta" /></div>
+    <div style="margin-bottom:8px"><input id="loginPassword" type="password" placeholder="Şifre" /></div>
+    <button class="btn" onclick="login()">Giriş Yap</button>
+    <div class="small" style="margin-top:8px">admin@okul.com ile giriş yapabilirsiniz.</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+    import { getDatabase, ref, onValue, update, set, get, remove } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js';
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB4V-4SBpYCtblRKj9-9MjyfdSN-mWF60U",
+      authDomain: "okul-zil-sistemi-7d402.firebaseapp.com",
+      databaseURL: "https://okul-zil-sistemi-7d402-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "okul-zil-sistemi-7d402"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const database = getDatabase(app);
+    const auth = getAuth(app);
+
+    let programs = {};
+    let slaves = {};
+    let holidays = {};
+    let currentSchedule = [];
+    let currentLocation = "";
+
+    // Auth + simple email-based admin check (temporary)
+    onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const email = user.email ? user.email.toLowerCase() : '';
+        console.log('Giriş yapan:', email, 'uid=', user.uid);
+        if (email === 'admin@okul.com') {
+          document.getElementById('login').style.display = 'none';
+          document.getElementById('main').style.display = 'block';
+          listenToSlaves();
+          listenToPrograms();
+          listenToSystem();
+        } else {
+          alert('Bu hesap admin değil. Giriş reddedildi.');
+          await signOut(auth);
+        }
+      } else {
+        document.getElementById('login').style.display = 'block';
+        document.getElementById('main').style.display = 'none';
+      }
+    });
+
+    window.login = async function() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (err) {
+        alert('Giriş hatası: ' + err.message);
+      }
+    };
+
+    window.logout = async function() {
+      await signOut(auth);
+    };
+
+    // Slaves
+    function listenToSlaves() {
+      const r = ref(database, 'slaves');
+      onValue(r, (snap) => {
+        slaves = snap.val() || {};
+        renderSlaves();
+      });
+    }
+    function renderSlaves() {
+      const el = document.getElementById('slaveList');
+      el.innerHTML = '';
+      for (const [id, d] of Object.entries(slaves)) {
+        const div = document.createElement('div');
+        const lastSeen = d.last_seen ? new Date(d.last_seen*1000).toLocaleString() : '—';
+        div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px;border-radius:6px;background:#fff;margin-bottom:6px">
+          <div><strong>${id}</strong><div class="small">Durum: ${d.durum||'-'} • Lokasyon: ${d.lokasyon||'-'}</div></div>
+          <div class="small">Online: ${d.online? '✅' : '❌'}<br>Last: ${lastSeen}</div>
+        </div>`;
+        el.appendChild(div);
+      }
+    }
+
+    // Programs / locations
+    function listenToPrograms() {
+      const r = ref(database, 'programs');
+      onValue(r, (snap) => {
+        programs = snap.val() || {};
+        renderLocations();
+        populateLocationSelector();
+      });
+    }
+    function renderLocations() {
+      const el = document.getElementById('locationsList');
+      el.innerHTML = '';
+      const keys = Object.keys(programs);
+      if (keys.length === 0) el.innerHTML = '<div class="small">Hiç lokasyon yok.</div>';
+      keys.forEach(loc => {
+        const item = document.createElement('div');
+        item.className = 'location-item';
+        item.innerHTML = `<div><div><strong>${loc}</strong></div><div class="small">${(programs[loc].zilSayisi||0)} zaman</div></div>
+          <div style="display:flex;gap:6px">
+            <button class="btn small-btn" onclick="manageLocation('${loc}')">Yönet</button>
+            <button class="btn btn-success small-btn" onclick="sendCommandToLocation('${loc}','TENEFFUS')">🟢</button>
+            <button class="btn btn-danger small-btn" onclick="sendCommandToLocation('${loc}','DERS')">🔴</button>
+            <button class="btn small-btn" style="background:#757575;color:#fff" onclick="sendCommandToLocation('${loc}','KAPALI')">⚫</button>
+            <button class="btn small-btn" style="background:#f44336" onclick="deleteLocation('${loc}')">Sil</button>
+          </div>`;
+        el.appendChild(item);
+      });
+    }
+    function populateLocationSelector() {
+      const sel = document.getElementById('locationSelector');
+      const cur = sel.value;
+      sel.innerHTML = '<option value="">-- Lokasyon seçin --</option>';
+      Object.keys(programs).forEach(loc => {
+        const opt = document.createElement('option');
+        opt.value = loc; opt.textContent = loc;
+        sel.appendChild(opt);
+      });
+      if (Object.keys(programs).includes(cur)) sel.value = cur;
+      else { sel.value = ''; currentSchedule = []; displaySchedule(); }
+    }
+
+    window.addLocation = async function() {
+      const name = document.getElementById('newLocationInput').value.trim();
+      if (!name) return alert('İsim girin');
+      if (programs[name]) return alert('Zaten var');
+      const defaultProgram = { zilSayisi:1, ziller:[{saat:8,dakika:0,durum:"DERS",aktif:true}] };
+      await set(ref(database, `programs/${name}`), defaultProgram);
+      alert('Eklendi');
+    };
+
+    window.deleteLocation = async function(loc) {
+      if (!confirm('Silinsin mi: ' + loc)) return;
+      await remove(ref(database, `programs/${loc}`));
+    };
+
+    window.manageLocation = function(loc) {
+      document.getElementById('locationSelector').value = loc;
+      loadSchedule();
+      window.scrollTo({top:200, behavior:'smooth'});
+    };
+
+    // schedule editor
+    window.loadSchedule = async function() {
+      const loc = document.getElementById('locationSelector').value;
+      currentLocation = loc;
+      if (!loc) { currentSchedule = []; displaySchedule(); return; }
+      const snap = await get(ref(database, `programs/${loc}`));
+      if (snap.exists()) currentSchedule = snap.val().ziller || [];
+      else currentSchedule = [];
+      displaySchedule();
+    };
+    function displaySchedule() {
+      const editor = document.getElementById('scheduleEditor');
+      editor.innerHTML = '';
+      currentSchedule.forEach((item, idx) => {
+        const row = document.createElement('div');
+        row.style.display = 'flex'; row.style.gap = '6px'; row.style.marginBottom = '6px';
+        row.innerHTML = `<input type="number" value="${item.saat}" min="0" max="23" onchange="updateScheduleItem(${idx},'saat',this.value)" />
+          <input type="number" value="${item.dakika}" min="0" max="59" onchange="updateScheduleItem(${idx},'dakika',this.value)"/>
+          <select onchange="updateScheduleItem(${idx},'durum',this.value)">
+            <option value="DERS" ${item.durum==='DERS'?'selected':''}>Ders</option>
+            <option value="TENEFFUS" ${item.durum==='TENEFFUS'?'selected':''}>Teneffüs</option>
+            <option value="KAPALI" ${item.durum==='KAPALI'?'selected':''}>Kapalı</option>
+          </select>
+          <button class="btn" onclick="toggleScheduleItem(${idx})">${item.aktif?'✓ Aktif':'✗ Pasif'}</button>
+          <button class="btn btn-danger" onclick="deleteScheduleItem(${idx})">Sil</button>`;
+        editor.appendChild(row);
+      });
+      if (currentSchedule.length === 0) editor.innerHTML = '<div class="small">Program yok.</div>';
+    }
+    window.updateScheduleItem = function(i, field, val) {
+      if (!currentSchedule[i]) return;
+      if (field === 'saat' || field === 'dakika') currentSchedule[i][field] = parseInt(val);
+      else currentSchedule[i][field] = val;
+    };
+    window.toggleScheduleItem = function(i){ currentSchedule[i].aktif = !currentSchedule[i].aktif; displaySchedule(); };
+    window.deleteScheduleItem = function(i){ if (confirm('Sil?')) { currentSchedule.splice(i,1); displaySchedule(); } };
+    window.addScheduleItem = function() { currentSchedule.push({saat:8,dakika:30,durum:'DERS',aktif:true}); displaySchedule(); };
+    window.saveSchedule = async function() {
+      if (!currentLocation) return alert('Önce lokasyon seçin');
+      currentSchedule.sort((a,b)=> (a.saat*60+a.dakika)-(b.saat*60+b.dakika));
+      const data = { zilSayisi: currentSchedule.length, ziller: currentSchedule };
+      await set(ref(database, `programs/${currentLocation}`), data);
+      alert('Kaydedildi');
+    };
+
+    // Broadcast & location command
+    window.sendAllCommand = async function(cmd) {
+      if (!confirm('Tüm cihazlara gönderilsin mi? ' + cmd)) return;
+      await update(ref(database,'system'), { broadcast: cmd, broadcast_time: Date.now() });
+      await update(ref(database,'slaves/master'), { komut: cmd });
+      alert('Gönderildi');
+    };
+
+    window.sendCommandToLocation = async function(location, command) {
+      if (!confirm(`${location} -> ${command}`)) return;
+      const locCmd = `LOC:${location}:${command}`;
+      await update(ref(database,'slaves/master'), { komut: locCmd });
+      await update(ref(database,'system'), { broadcast: locCmd, broadcast_time: Date.now() });
+      alert('Gönderildi');
+    };
+
+    // System: holidays & ignore_weekends
+    function listenToSystem(){
+      const r = ref(database,'system');
+      onValue(r, (snap)=> {
+        const s = snap.val() || {};
+        document.getElementById('ignoreWeekendsCheckbox').checked = !!s.ignore_weekends;
+        // load holidays map
+        get(ref(database,'system/holidays')).then(hsnap=>{
+          holidays = hsnap.val() || {};
+          renderHolidays();
+        });
+      });
+    }
+    function renderHolidays(){
+      const el = document.getElementById('holidaysList');
+      el.innerHTML = '';
+      const keys = Object.keys(holidays).sort();
+      if (keys.length === 0) el.innerHTML = '<div class="small">Tatil yok.</div>';
+      keys.forEach(k=>{
+        const row = document.createElement('div');
+        row.style.display='flex'; row.style.justifyContent='space-between'; row.style.marginBottom='6px';
+        row.innerHTML = `<div>${k}</div><div><button class="btn" onclick="removeHoliday('${k}')">Sil</button></div>`;
+        el.appendChild(row);
+      });
+    }
+    window.addHoliday = async function() {
+      const d = document.getElementById('holidayDate').value.trim();
+      if (!d) return alert('Tarih girin (YYYY-MM-DD)');
+      await set(ref(database, `system/holidays/${d}`), true);
+      await update(ref(database, 'system'), { holidays_version: Date.now() });
+      alert('Eklendi');
+    };
+    window.removeHoliday = async function(d) {
+      if (!confirm('Silinsin mi ' + d + '?')) return;
+      await remove(ref(database, `system/holidays/${d}`));
+      await update(ref(database, 'system'), { holidays_version: Date.now() });
+    };
+    window.toggleIgnoreWeekends = async function() {
+      const val = document.getElementById('ignoreWeekendsCheckbox').checked;
+      await update(ref(database, 'system'), { ignore_weekends: val, holidays_version: Date.now() });
+      alert('Güncellendi');
+    };
+
+    // Holiday RANGE helpers
+    function dateToYMDstr(dt) {
+      const y = dt.getFullYear();
+      const m = (dt.getMonth()+1).toString().padStart(2,'0');
+      const d = dt.getDate().toString().padStart(2,'0');
+      return `${y}-${m}-${d}`;
+    }
+    function getDatesBetween(startStr, endStr) {
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+      if (isNaN(start) || isNaN(end) || start > end) return [];
+      const dates = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+1)) {
+        dates.push(dateToYMDstr(new Date(d)));
+      }
+      return dates;
+    }
+
+    window.addHolidayRange = async function() {
+      const s = document.getElementById('holidayStart').value;
+      const e = document.getElementById('holidayEnd').value;
+      if (!s || !e) return alert('Başlangıç ve bitiş tarihini seçin');
+      const dates = getDatesBetween(s, e);
+      if (dates.length === 0) return alert('Geçersiz aralık');
+      const updates = {};
+      dates.forEach(d => {
+        updates[`system/holidays/${d}`] = true;
+      });
+      // write all dates in one update call to reduce writes
+      await update(ref(database, '/'), updates);
+      await update(ref(database, 'system'), { holidays_version: Date.now() });
+      alert(`Aralık eklendi: ${dates.length} gün`);
+    };
+
+    window.removeHolidayRange = async function() {
+      const s = document.getElementById('holidayStart').value;
+      const e = document.getElementById('holidayEnd').value;
+      if (!s || !e) return alert('Başlangıç ve bitiş tarihini seçin');
+      const dates = getDatesBetween(s, e);
+      if (dates.length === 0) return alert('Geçersiz aralık');
+      // remove each key
+      const updates = {};
+      dates.forEach(d => {
+        updates[`system/holidays/${d}`] = null; // setting null deletes in update()
+      });
+      await update(ref(database, '/'), updates);
+      await update(ref(database, 'system'), { holidays_version: Date.now() });
+      alert(`Aralık silindi: ${dates.length} gün`);
+    };
+
+    // Manual RTC sync
+    window.requestSync = async function() {
+      if (!confirm('Master RTC ile senkronize edilsin mi?')) return;
+      await update(ref(database, 'system'), { sync_time: 'REQUEST' });
+      alert('İstek gönderildi. Master online ise birkaç saniye içinde tamamlanır.');
+    };
+  </script>
+</body>
+</html>
