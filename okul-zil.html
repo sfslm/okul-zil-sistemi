@@ -193,15 +193,53 @@
     function renderSlaves() {
       const el = document.getElementById('slaveList');
       el.innerHTML = '';
+      
+      // Son görülme zamanına göre online kontrolü (son 30 saniye)
+      const now = Date.now() / 1000;
+      
       for (const [id, d] of Object.entries(slaves)) {
         const div = document.createElement('div');
-        const lastSeen = d.last_seen ? new Date(d.last_seen*1000).toLocaleString() : '—';
-        div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;padding:6px;border-radius:6px;background:#fff;margin-bottom:6px">
-          <div><strong>${id}</strong><div class="small">Durum: ${d.durum||'-'} • Lokasyon: ${d.lokasyon||'-'}</div></div>
-          <div class="small">Online: ${d.online? '✅' : '❌'}<br>Last: ${lastSeen}</div>
+        const lastSeen = d.last_seen ? new Date(d.last_seen*1000).toLocaleString('tr-TR') : '—';
+        
+        // Online kontrolü: son 30 saniyede görülmüş mü?
+        const isOnline = d.last_seen ? (now - d.last_seen < 30) : false;
+        const onlineIcon = isOnline ? '✅ ONLINE' : '❌ OFFLINE';
+        const bgColor = isOnline ? '#e8f5e9' : '#ffebee';
+        const borderColor = isOnline ? '#4CAF50' : '#f44336';
+        
+        // Durum renklendirmesi
+        let durumBadge = '';
+        if (d.durum === 'TENEFFUS') {
+          durumBadge = '<span style="background:#4CAF50;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🟢 TENEFFÜS</span>';
+        } else if (d.durum === 'DERS') {
+          durumBadge = '<span style="background:#f44336;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🔴 DERS</span>';
+        } else if (d.durum === 'KAPALI') {
+          durumBadge = '<span style="background:#757575;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">⚫ KAPALI</span>';
+        } else {
+          durumBadge = `<span style="background:#ddd;color:#333;padding:2px 6px;border-radius:4px;font-size:0.8rem">${d.durum||'-'}</span>`;
+        }
+        
+        // Tip ikonu
+        const tipIcon = d.tip === 'MASTER' ? '🎛️' : '📱';
+        
+        div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;padding:10px;border-radius:6px;background:${bgColor};margin-bottom:8px;border-left:4px solid ${borderColor}">
+          <div>
+            <div style="margin-bottom:4px"><strong>${tipIcon} ${id}</strong></div>
+            <div class="small">${durumBadge}</div>
+            <div class="small" style="margin-top:4px">📍 ${d.lokasyon||'-'} • 🔧 ${d.mod||'-'}</div>
+          </div>
+          <div class="small" style="text-align:right">
+            <div style="font-weight:bold;margin-bottom:4px">${onlineIcon}</div>
+            <div>Son: ${lastSeen}</div>
+          </div>
         </div>`;
         el.appendChild(div);
       }
+      
+      if (Object.keys(slaves).length === 0) {
+        el.innerHTML = '<div class="small" style="padding:12px;text-align:center;color:#999">Henüz cihaz yok</div>';
+      }
+      
       updateMasterLocationSelector();
     }
     
