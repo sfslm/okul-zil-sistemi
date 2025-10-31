@@ -56,9 +56,16 @@
 
         <div class="panel">
           <h3>🚨 Acil Komut</h3>
-          <button class="btn btn-success" onclick="sendAllCommand('TENEFFUS')">🟢 HEPSİ TENEFFÜS</button>
-          <button class="btn btn-danger" onclick="sendAllCommand('DERS')">🔴 HEPSİ DERS</button>
-          <button class="btn" style="background:#757575;color:#fff" onclick="sendAllCommand('KAPALI')">⚫ HEPSİ KAPALI</button>
+          <div style="margin-bottom:12px">
+            <button class="btn btn-success" onclick="sendAllCommand('TENEFFUS')">🟢 HEPSİ TENEFFÜS</button>
+            <button class="btn btn-danger" onclick="sendAllCommand('DERS')">🔴 HEPSİ DERS</button>
+            <button class="btn" style="background:#757575;color:#fff" onclick="sendAllCommand('KAPALI')">⚫ HEPSİ KAPALI</button>
+          </div>
+          <div style="padding:12px;background:#fff3cd;border-radius:8px;border-left:4px solid #ffc107">
+            <strong>⚠️ Otomatik Moda Dön</strong>
+            <p class="small" style="margin:8px 0">Manuel komut sonrası zil programına dönmek için:</p>
+            <button class="btn" style="background:#FF9800;color:#fff;width:100%" onclick="sendAutoCommand()">🔄 OTOMATİK MODA GEÇ</button>
+          </div>
         </div>
       </div>
 
@@ -94,7 +101,7 @@
         </div>
 
         <div class="panel">
-          <h3>📱 Cihazlar</h3>
+          <h3>📱 Cihazlar <span id="autoUpdateIndicator" style="font-size:0.7rem;color:#999;margin-left:8px;">●</span></h3>
           <div style="margin-bottom:12px;padding:12px;background:#e3f2fd;border-radius:8px;border-left:4px solid #2196F3">
             <strong>🎛️ Master Lokasyon Ayarı</strong>
             <div class="small" style="margin:6px 0">Master'ın hangi lokasyon programını takip edeceğini seçin:</div>
@@ -109,7 +116,11 @@
 
         <div class="panel">
           <h3>Bilgi</h3>
-          <div class="small">Saat senkronizasyonu: web'den "Saat Senkronize Et" ile istenebilir. Master günde bir kez NTP ile kendisini günceller (ağ limitlerini korumak için).</div>
+          <div class="small">
+            • Online kontrolü: Her 5 saniyede otomatik güncellenir<br>
+            • Offline süresi: 30 saniye yanıt vermezse offline<br>
+            • Saat senkronizasyonu: Master günde bir kez NTP ile güncellenir
+          </div>
         </div>
       </div>
     </div>
@@ -146,7 +157,7 @@
     let currentSchedule = [];
     let currentLocation = "";
 
-    // Auth + simple email-based admin check (temporary)
+    // Auth
     onAuthStateChanged(auth, async (user) => {
       if (user) {
         const email = user.email ? user.email.toLowerCase() : '';
@@ -181,33 +192,49 @@
       await signOut(auth);
     };
 
-    // Slaves
+    // Slaves - Otomatik güncelleme ile
     function listenToSlaves() {
       const r = ref(database, 'slaves');
       onValue(r, (snap) => {
         slaves = snap.val() || {};
         renderSlaves();
       });
+      
+      // Her 5 saniyede otomatik render (online durumu için)
+      setInterval(() => {
+        renderSlaves();
+        // Güncelleme göstergesi
+        const indicator = document.getElementById('autoUpdateIndicator');
+        indicator.style.color = '#4CAF50';
+        setTimeout(() => { indicator.style.color = '#999'; }, 300);
+      }, 5000);
     }
     
     function renderSlaves() {
       const el = document.getElementById('slaveList');
       el.innerHTML = '';
       
-      // Son görülme zamanına göre online kontrolü (son 30 saniye)
-      const now = Date.now() / 1000;
+      const now = Math.floor(Date.now() / 1000); // Unix timestamp (saniye)
       
       for (const [id, d] of Object.entries(slaves)) {
         const div = document.createElement('div');
-        const lastSeen = d.last_seen ? new Date(d.last_seen*1000).toLocaleString('tr-TR') : '—';
         
-        // Online kontrolü: son 30 saniyede görülmüş mü?
-        const isOnline = d.last_seen ? (now - d.last_seen < 30) : false;
+        // last_seen timestamp kontrolü
+        const lastSeenUnix = d.last_seen || 0;
+        const timeSinceLastSeen = lastSeenUnix > 0 ? (now - lastSeenUnix) : 9999;
+        
+        // ONLINE: Son 30 saniyede görüldü mü?
+        const isOnline = (timeSinceLastSeen < 30);
+        
+        // Türkiye saatine çevir
+        const lastSeenDate = lastSeenUnix > 0 ? new Date(lastSeenUnix * 1000) : null;
+        const lastSeenStr = lastSeenDate ? lastSeenDate.toLocaleString('tr-TR', {timeZone: 'Europe/Istanbul'}) : '—';
+        
         const onlineIcon = isOnline ? '✅ ONLINE' : '❌ OFFLINE';
         const bgColor = isOnline ? '#e8f5e9' : '#ffebee';
         const borderColor = isOnline ? '#4CAF50' : '#f44336';
         
-        // Durum renklendirmesi
+        // Durum badge
         let durumBadge = '';
         if (d.durum === 'TENEFFUS') {
           durumBadge = '<span style="background:#4CAF50;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🟢 TENEFFÜS</span>';
@@ -219,7 +246,6 @@
           durumBadge = `<span style="background:#ddd;color:#333;padding:2px 6px;border-radius:4px;font-size:0.8rem">${d.durum||'-'}</span>`;
         }
         
-        // Tip ikonu
         const tipIcon = d.tip === 'MASTER' ? '🎛️' : '📱';
         
         div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;padding:10px;border-radius:6px;background:${bgColor};margin-bottom:8px;border-left:4px solid ${borderColor}">
@@ -230,7 +256,8 @@
           </div>
           <div class="small" style="text-align:right">
             <div style="font-weight:bold;margin-bottom:4px">${onlineIcon}</div>
-            <div>Son: ${lastSeen}</div>
+            <div>Son: ${lastSeenStr}</div>
+            ${!isOnline && timeSinceLastSeen < 9999 ? `<div style="color:#f44336;margin-top:4px">${Math.floor(timeSinceLastSeen)}s önce</div>` : ''}
           </div>
         </div>`;
         el.appendChild(div);
@@ -254,7 +281,6 @@
         sel.appendChild(opt);
       });
       
-      // Show current master location
       get(ref(database, 'slaves/master/lokasyon')).then(snap => {
         const currentLoc = snap.val() || '';
         if (currentLoc) {
@@ -396,19 +422,29 @@
       await update(ref(database,'system'), { broadcast: locCmd, broadcast_time: Date.now() });
       alert('Gönderildi');
     };
-
+    
+    window.sendAutoCommand = async function() {
+      if (!confirm('Tüm cihazlar otomatik zil programına dönecek. Emin misiniz?')) return;
+      try {
+        await update(ref(database,'system'), { broadcast: 'AUTO', broadcast_time: Date.now() });
+        await update(ref(database,'slaves/master'), { komut: 'AUTO' });
+        alert('✅ Otomatik moda geçildi! Cihazlar artık zil programını takip ediyor.');
+      } catch (error) {
+        console.error('Otomatik mod hatası:', error);
+        alert('❌ Hata oluştu!');
+      }
+    };
+    
     // System: holidays & ignore_weekends
     function listenToSystem(){
       const r = ref(database,'system');
       onValue(r, (snap)=> {
         const s = snap.val() || {};
         document.getElementById('ignoreWeekendsCheckbox').checked = !!s.ignore_weekends;
-        // load holidays map
         get(ref(database,'system/holidays')).then(hsnap=>{
           holidays = hsnap.val() || {};
           renderHolidays();
         });
-        // load holiday ranges
         get(ref(database,'system/holiday_ranges')).then(rsnap=>{
           holidayRanges = rsnap.val() || {};
           renderHolidayRanges();
@@ -473,7 +509,6 @@
       alert('Güncellendi');
     };
 
-    // Holiday RANGE helpers
     function dateToYMDstr(dt) {
       const y = dt.getFullYear();
       const m = (dt.getMonth()+1).toString().padStart(2,'0');
@@ -498,7 +533,6 @@
       const dates = getDatesBetween(s, e);
       if (dates.length === 0) return alert('Geçersiz aralık');
       
-      // Save range metadata
       const rangeId = `${s}_${e}`;
       await set(ref(database, `system/holiday_ranges/${rangeId}`), {start: s, end: e});
       
@@ -555,7 +589,6 @@
       alert('Tüm aralıklar silindi');
     };
 
-    // Manual RTC sync
     window.requestSync = async function() {
       if (!confirm('Master RTC ile senkronize edilsin mi?')) return;
       await update(ref(database, 'system'), { sync_time: 'REQUEST' });
