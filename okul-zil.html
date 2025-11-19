@@ -1,10 +1,7 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-
-
     <meta charset="UTF-8" />
-    <meta name="referrer" content="no-referrer-when-downgrade">
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>Okul Zil Kontrol Sistemi</title>
     <style>
@@ -147,7 +144,6 @@
       authDomain: "okul-zil-sistemi-7d402.firebaseapp.com",
       databaseURL: "https://okul-zil-sistemi-7d402-default-rtdb.europe-west1.firebasedatabase.app",
       projectId: "okul-zil-sistemi-7d402"
-        appId: "1:YOUR_APP_ID:web:YOUR_WEB_APP_ID"
     };
 
     const app = initializeApp(firebaseConfig);
@@ -163,24 +159,28 @@
 
     // Auth
     onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        const email = user.email ? user.email.toLowerCase() : '';
-        console.log('Giriş yapan:', email, 'uid=', user.uid);
-        if (email === 'admin@okul.com') {
-          document.getElementById('login').style.display = 'none';
-          document.getElementById('main').style.display = 'block';
-          listenToSlaves();
-          listenToPrograms();
-          listenToSystem();
-        } else {
-          alert('Bu hesap admin değil. Giriş reddedildi.');
-          await signOut(auth);
-        }
-      } else {
-        document.getElementById('login').style.display = 'block';
-        document.getElementById('main').style.display = 'none';
-      }
-    });
+  if (user) {
+    const email = user.email ? user.email.toLowerCase() : '';
+    console.log('Giriş yapan:', email);
+    
+    // Admin kontrolü - GERÇEKTEKİ E-POSTANIZI EKLEYIN
+    const adminEmails = ['admin@okul.com', 'orhanakgun@gmail.com']; // Gerçek mailinizi buraya
+    
+    if (adminEmails.includes(email)) {
+      document.getElementById('login').style.display = 'none';
+      document.getElementById('main').style.display = 'block';
+      listenToSlaves();
+      listenToPrograms();
+      listenToSystem();
+    } else {
+      alert('Bu hesap admin değil. Giriş reddedildi.');
+      await signOut(auth);
+    }
+  } else {
+    document.getElementById('login').style.display = 'block';
+    document.getElementById('main').style.display = 'none';
+  }
+});
 
     window.login = async function() {
       const email = document.getElementById('loginEmail').value.trim();
@@ -203,41 +203,62 @@
         slaves = snap.val() || {};
         renderSlaves();
       });
-      
+
       // Her 5 saniyede otomatik render (online durumu için)
       setInterval(() => {
         renderSlaves();
-        // Güncelleme göstergesi
         const indicator = document.getElementById('autoUpdateIndicator');
         indicator.style.color = '#4CAF50';
         setTimeout(() => { indicator.style.color = '#999'; }, 300);
       }, 5000);
     }
-    
+
     function renderSlaves() {
       const el = document.getElementById('slaveList');
       el.innerHTML = '';
-      
-      const now = Math.floor(Date.now() / 1000); // Unix timestamp (saniye)
-      
+
+      // şu anki zaman (Unix saniye)
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      // tarayıcının timezone offset (saniye cinsinden, pozitif => saat ileri)
+      const tzSeconds = -new Date().getTimezoneOffset() * 60;
+
       for (const [id, d] of Object.entries(slaves)) {
         const div = document.createElement('div');
-        
-        // last_seen timestamp kontrolü
-        const lastSeenUnix = d.last_seen || 0;
-        const timeSinceLastSeen = lastSeenUnix > 0 ? (now - lastSeenUnix) : 9999;
-        
-        // ONLINE: Son 30 saniyede görüldü mü?
-        const isOnline = (timeSinceLastSeen < 30);
-        
-        // Türkiye saatine çevir
+
+        // raw last_seen (string veya number)
+        const lastSeenRaw = d.last_seen;
+        let lastSeenUnix = parseInt(lastSeenRaw) || 0;
+
+        // Normalize: eğer DB'de milisaniye varsa saniyeye çevir
+        if (lastSeenUnix > 1e12) {
+          lastSeenUnix = Math.floor(lastSeenUnix / 1000);
+        } else if (lastSeenUnix > 1e10) {
+          lastSeenUnix = Math.floor(lastSeenUnix / 1000);
+        }
+
+        // Eğer timestamp gelecekteyse (cihazların local zamanı epoch gibi yazması durumu),
+        // ve fark tarayıcı timezone offset'ine yakınsa otomatik düzelt.
+        if (lastSeenUnix > nowSeconds + 60) {
+          const diff = lastSeenUnix - nowSeconds;
+          // Eğer diff yaklaşık tzSeconds ise düzelt (esnek tolerans: 1 saat)
+          if (Math.abs(diff - tzSeconds) < 3600) {
+            lastSeenUnix = lastSeenUnix - tzSeconds;
+          }
+          // başka durumlarda (çok büyük gelecek timestamp) normalize edilmiş ms hatası olabilir, bırakıyoruz.
+        }
+
+        // Son görülmeden bu yana geçen süre (saniye)
+        const timeSinceLastSeen = lastSeenUnix > 0 ? Math.abs(nowSeconds - lastSeenUnix) : 9999;
+        // ONLINE: son 30 saniye içinde görüldüyse
+        const isOnline = (lastSeenUnix > 0) && (timeSinceLastSeen < 30);
+
         const lastSeenDate = lastSeenUnix > 0 ? new Date(lastSeenUnix * 1000) : null;
-        const lastSeenStr = lastSeenDate ? lastSeenDate.toLocaleString('tr-TR', {timeZone: 'Europe/Istanbul'}) : '—';
-        
+        const lastSeenStr = lastSeenDate ? lastSeenDate.toLocaleString('tr-TR') : '—';
+
         const onlineIcon = isOnline ? '✅ ONLINE' : '❌ OFFLINE';
         const bgColor = isOnline ? '#e8f5e9' : '#ffebee';
         const borderColor = isOnline ? '#4CAF50' : '#f44336';
-        
+
         // Durum badge
         let durumBadge = '';
         if (d.durum === 'TENEFFUS') {
@@ -249,9 +270,9 @@
         } else {
           durumBadge = `<span style="background:#ddd;color:#333;padding:2px 6px;border-radius:4px;font-size:0.8rem">${d.durum||'-'}</span>`;
         }
-        
+
         const tipIcon = d.tip === 'MASTER' ? '🎛️' : '📱';
-        
+
         div.innerHTML = `<div style="display:flex;justify-content:space-between;gap:8px;padding:10px;border-radius:6px;background:${bgColor};margin-bottom:8px;border-left:4px solid ${borderColor}">
           <div>
             <div style="margin-bottom:4px"><strong>${tipIcon} ${id}</strong></div>
@@ -266,14 +287,14 @@
         </div>`;
         el.appendChild(div);
       }
-      
+
       if (Object.keys(slaves).length === 0) {
         el.innerHTML = '<div class="small" style="padding:12px;text-align:center;color:#999">Henüz cihaz yok</div>';
       }
-      
+
       updateMasterLocationSelector();
     }
-    
+
     function updateMasterLocationSelector() {
       const sel = document.getElementById('masterLocationSelector');
       const current = sel.value;
@@ -284,7 +305,7 @@
         opt.textContent = loc;
         sel.appendChild(opt);
       });
-      
+
       get(ref(database, 'slaves/master/lokasyon')).then(snap => {
         const currentLoc = snap.val() || '';
         if (currentLoc) {
@@ -295,7 +316,7 @@
         }
       });
     }
-    
+
     window.setMasterLocation = async function() {
       const loc = document.getElementById('masterLocationSelector').value;
       if (!loc) return alert('Lütfen bir lokasyon seçin');
@@ -426,7 +447,7 @@
       await update(ref(database,'system'), { broadcast: locCmd, broadcast_time: Date.now() });
       alert('Gönderildi');
     };
-    
+
     window.sendAutoCommand = async function() {
       if (!confirm('Tüm cihazlar otomatik zil programına dönecek. Emin misiniz?')) return;
       try {
@@ -438,7 +459,7 @@
         alert('❌ Hata oluştu!');
       }
     };
-    
+
     // System: holidays & ignore_weekends
     function listenToSystem(){
       const r = ref(database,'system');
@@ -455,7 +476,7 @@
         });
       });
     }
-    
+
     function renderHolidays(){
       const el = document.getElementById('holidaysList');
       el.innerHTML = '<strong>Tek Tarihler:</strong><br>';
@@ -473,7 +494,7 @@
         el.appendChild(clearAll);
       }
     }
-    
+
     function renderHolidayRanges(){
       const el = document.getElementById('holidayRangesList');
       el.innerHTML = '<strong style="margin-top:12px;display:block">Tarih Aralıkları:</strong><br>';
@@ -492,7 +513,7 @@
         el.appendChild(clearAll);
       }
     }
-    
+
     window.addHoliday = async function() {
       const d = document.getElementById('holidayDate').value.trim();
       if (!d) return alert('Tarih girin (YYYY-MM-DD)');
@@ -500,13 +521,13 @@
       await update(ref(database, 'system'), { holidays_version: Date.now() });
       alert('Eklendi');
     };
-    
+
     window.removeHoliday = async function(d) {
       if (!confirm('Silinsin mi ' + d + '?')) return;
       await remove(ref(database, `system/holidays/${d}`));
       await update(ref(database, 'system'), { holidays_version: Date.now() });
     };
-    
+
     window.toggleIgnoreWeekends = async function() {
       const val = document.getElementById('ignoreWeekendsCheckbox').checked;
       await update(ref(database, 'system'), { ignore_weekends: val, holidays_version: Date.now() });
@@ -536,10 +557,10 @@
       if (!s || !e) return alert('Başlangıç ve bitiş tarihini seçin');
       const dates = getDatesBetween(s, e);
       if (dates.length === 0) return alert('Geçersiz aralık');
-      
+
       const rangeId = `${s}_${e}`;
       await set(ref(database, `system/holiday_ranges/${rangeId}`), {start: s, end: e});
-      
+
       const updates = {};
       dates.forEach(d => {
         updates[`system/holidays/${d}`] = true;
@@ -551,10 +572,10 @@
 
     window.removeHolidayRange = async function(rangeId) {
       if (!confirm('Bu aralığı silmek istediğinize emin misiniz?')) return;
-      
+
       const range = holidayRanges[rangeId];
       if (!range) return;
-      
+
       const dates = getDatesBetween(range.start, range.end);
       const updates = {};
       dates.forEach(d => {
@@ -600,7 +621,4 @@
     };
   </script>
 </body>
-
 </html>
-
-
