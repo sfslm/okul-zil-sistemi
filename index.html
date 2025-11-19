@@ -1,10 +1,81 @@
-  <!DOCTYPE html>
-   <html>
-   <head>
-     <meta charset="utf-8">
-     <meta http-equiv="refresh" content="0; url=./okul-zil-sistemi.html">
-   </head>
-   <body>
-     Yönlendiriliyor...
-   </body>
-   </html>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="referrer" content="no-referrer-when-downgrade">
+    <title>Okul Zil Kontrol Sistemi</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: linear-gradient(135deg,#667eea,#764ba2); color:#222; }
+        .container { max-width:1100px; margin:0 auto; background:#fff; border-radius:12px; padding:16px; }
+        header { display:flex; justify-content:space-between; align-items:center; padding:12px 0; }
+        h1 { margin:0; font-size:1.25rem; }
+        .btn{ background:#2196F3; color:#fff; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }
+        .btn-danger{ background:#f44336; }
+        input { padding:8px; border-radius:6px; border:1px solid #ddd; width:100%; }
+        #login { max-width:420px; margin:40px auto; background:#fff; padding:18px; border-radius:12px; }
+        .small { font-size:0.9rem; color:#666; }
+    </style>
+</head>
+<body>
+  <div id="login">
+    <h2>Giriş</h2>
+    <div style="margin-bottom:8px"><input id="loginEmail" placeholder="E-posta" /></div>
+    <div style="margin-bottom:8px"><input id="loginPassword" type="password" placeholder="Şifre" /></div>
+    <button class="btn" onclick="login()" style="width:100%">Giriş Yap</button>
+    <div class="small" style="margin-top:8px">admin@okul.com ile giriş yapabilirsiniz.</div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+    import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyB4V-4SBpYCtblRKj9-9MjyfdSN-mWF60U",
+      authDomain: "okul-zil-sistemi-7d402.firebaseapp.com",
+      databaseURL: "https://okul-zil-sistemi-7d402-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "okul-zil-sistemi-7d402"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        window.location.href = './okul-zil-sistemi.html';
+      }
+    });
+
+    window.login = async function() {
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      try {
+        await signInWithEmailAndPassword(auth, email, password);
+      } catch (err) {
+        alert('Giriş hatası: ' + err.message);
+      }
+    };
+  </script>
+</body>
+</html>
+```
+
+5. **Commit changes** tıkla
+
+---
+
+**ADIM 2: okul-zil-sistemi.html Kontrolü**
+
+Asıl dosya (`okul-zil-sistemi.html`) repo'da var mı?
+
+Yoksa yükle:
+1. **Add file** → **Upload files**
+2. Dosyayı seç
+3. **Commit** tıkla
+
+---
+
+**ADIM 3: Test Et**
+```
+https://sfslm.github.io/okul-zil-sistemi/
