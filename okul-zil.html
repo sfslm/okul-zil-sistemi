@@ -20,6 +20,7 @@
         input, select { padding:8px; border-radius:6px; border:1px solid #ddd; width:100%; }
         .locations-list .location-item{ display:flex; justify-content:space-between; align-items:center; padding:8px; background:#fff; border-radius:6px; margin-bottom:6px; border-left:4px solid #2196F3; }
         .small { font-size:0.9rem; color:#666; }
+        @keyframes blink { 0%,60% { opacity:1; } 61%,100% { opacity:0.15; } }
     </style>
 </head>
 <body>
@@ -58,8 +59,8 @@
         <div class="panel">
           <h3>🚨 Acil Komut</h3>
           <div style="margin-bottom:12px">
-            <button class="btn btn-success" onclick="sendAllCommand('TENEFFUS')">🟢 HEPSİ TENEFFÜS</button>
-            <button class="btn btn-danger" onclick="sendAllCommand('DERS')">🔴 HEPSİ DERS</button>
+            <button class="btn btn-success" onclick="sendAllCommand('DERS')">🟢 HEPSİ DERS</button>
+            <button class="btn btn-danger" onclick="sendAllCommand('TENEFFUS')">🔴 HEPSİ TENEFFÜS</button>
             <button class="btn" style="background:#757575;color:#fff" onclick="sendAllCommand('KAPALI')">⚫ HEPSİ KAPALI</button>
           </div>
           <div style="padding:12px;background:#fff3cd;border-radius:8px;border-left:4px solid #ffc107">
@@ -113,6 +114,28 @@
             <div id="currentMasterLocation" class="small" style="margin-top:8px;color:#666"></div>
           </div>
           <div id="slaveList" class="small"></div>
+        </div>
+
+        <div class="panel">
+          <h3>💡 Gösterge Parlaklığı</h3>
+          <div class="small" style="margin-bottom:6px">Master halkasının parlaklığı (5–255). Cihaz en geç 1 dakika içinde uygular.</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input id="brightnessSlider" type="range" min="5" max="255" step="5" value="255" style="flex:1" oninput="document.getElementById('brightnessValue').textContent=this.value" />
+            <span id="brightnessValue" style="min-width:36px;text-align:right;font-weight:bold">255</span>
+          </div>
+          <button class="btn" style="width:100%;margin-top:8px" onclick="saveBrightness()">💾 Parlaklığı Kaydet</button>
+        </div>
+
+        <div class="panel">
+          <h3>Gösterge Renkleri</h3>
+          <div class="small" style="line-height:1.8">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#4CAF50;vertical-align:middle"></span> Ders<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#FFC000;vertical-align:middle"></span> Dersin son 5 dakikası<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f44336;vertical-align:middle"></span> Teneffüs<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f44336;vertical-align:middle;animation:blink 1s infinite"></span> Ders başlamadan önceki son 2 dakika (yanıp söner)<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#757575;vertical-align:middle"></span> Kapalı / tatil<br>
+            <span style="color:#999">Sarı ve yanıp sönme sadece otomatik modda çalışır; manuel komutta düz renk yanar.</span>
+          </div>
         </div>
 
         <div class="panel">
@@ -203,6 +226,13 @@
       onValue(r, (snap) => {
         slaves = snap.val() || {};
         renderSlaves();
+        // Parlaklık kaydırıcısını cihazdaki değerle eşitle (kullanıcı oynarken üzerine yazma)
+        const slider = document.getElementById('brightnessSlider');
+        const p = slaves.master && slaves.master.parlaklik;
+        if (p && document.activeElement !== slider) {
+          slider.value = p;
+          document.getElementById('brightnessValue').textContent = p;
+        }
       });
 
       // Her 5 saniyede otomatik render (online durumu için)
@@ -263,9 +293,9 @@
         // Durum badge
         let durumBadge = '';
         if (d.durum === 'TENEFFUS') {
-          durumBadge = '<span style="background:#4CAF50;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🟢 TENEFFÜS</span>';
+          durumBadge = '<span style="background:#f44336;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🔴 TENEFFÜS</span>';
         } else if (d.durum === 'DERS') {
-          durumBadge = '<span style="background:#f44336;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🔴 DERS</span>';
+          durumBadge = '<span style="background:#4CAF50;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">🟢 DERS</span>';
         } else if (d.durum === 'KAPALI') {
           durumBadge = '<span style="background:#757575;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem">⚫ KAPALI</span>';
         } else {
@@ -347,8 +377,8 @@
         item.innerHTML = `<div><div><strong>${loc}</strong></div><div class="small">${(programs[loc].zilSayisi||0)} zaman</div></div>
           <div style="display:flex;gap:6px">
             <button class="btn small-btn" onclick="manageLocation('${loc}')">Yönet</button>
-            <button class="btn btn-success small-btn" onclick="sendCommandToLocation('${loc}','TENEFFUS')">🟢</button>
-            <button class="btn btn-danger small-btn" onclick="sendCommandToLocation('${loc}','DERS')">🔴</button>
+            <button class="btn btn-success small-btn" title="Ders" onclick="sendCommandToLocation('${loc}','DERS')">🟢</button>
+            <button class="btn btn-danger small-btn" title="Teneffüs" onclick="sendCommandToLocation('${loc}','TENEFFUS')">🔴</button>
             <button class="btn small-btn" style="background:#757575;color:#fff" onclick="sendCommandToLocation('${loc}','KAPALI')">⚫</button>
             <button class="btn small-btn" style="background:#f44336" onclick="deleteLocation('${loc}')">Sil</button>
           </div>`;
@@ -613,6 +643,13 @@
       await remove(ref(database, 'system/holiday_ranges'));
       await update(ref(database, 'system'), { holidays_version: Date.now() });
       alert('Tüm aralıklar silindi');
+    };
+
+    window.saveBrightness = async function() {
+      const val = parseInt(document.getElementById('brightnessSlider').value);
+      if (isNaN(val) || val < 5 || val > 255) return alert('Geçersiz değer');
+      await update(ref(database, 'slaves/master'), { parlaklik: val });
+      alert('Parlaklık kaydedildi: ' + val + ' (en geç 1 dakika içinde uygulanır)');
     };
 
     window.requestSync = async function() {
