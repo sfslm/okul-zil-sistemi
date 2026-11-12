@@ -20,6 +20,7 @@
         input, select { padding:8px; border-radius:6px; border:1px solid #ddd; width:100%; }
         .locations-list .location-item{ display:flex; justify-content:space-between; align-items:center; padding:8px; background:#fff; border-radius:6px; margin-bottom:6px; border-left:4px solid #2196F3; }
         .small { font-size:0.9rem; color:#666; }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes blink { 0%,60% { opacity:1; } 61%,100% { opacity:0.15; } }
     </style>
 </head>
@@ -130,7 +131,8 @@
           <h3>Gösterge Renkleri</h3>
           <div class="small" style="line-height:1.8">
             <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#4CAF50;vertical-align:middle"></span> Ders<br>
-            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#FFC000;vertical-align:middle"></span> Dersin son 5 dakikası<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#FFC000;vertical-align:middle"></span> Dersin son 2 dakikası (girişte bir kez yeşil yanıp söner, sonra turuncu)<br>
+            <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#FFC000;vertical-align:middle;animation:blink 1s infinite"></span> Dersin son 5 saniyesi (turuncu, tam parlaklıkta yanıp söner)<br>
             <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f44336;vertical-align:middle"></span> Teneffüs<br>
             <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#f44336;vertical-align:middle;animation:blink 1s infinite"></span> Ders başlamadan önceki son 2 dakika (yanıp söner)<br>
             <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#757575;vertical-align:middle"></span> Kapalı / tatil<br>
